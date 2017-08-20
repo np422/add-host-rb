@@ -171,7 +171,7 @@ def banner
   $ add-host -d some.domain.com -s 10.20.20.11 prd-bapp-v021
 
   $ export AHDOMAIN=other.domain.org
-  $ export ANDNS=172.16.14.0
+  $ export AHDNS=172.16.14.0
   $ add-host -a ora1 oradb-vl001-ops-a
   $ add-host -a ora2 oradb-vl002-ops-b
 
