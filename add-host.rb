@@ -97,12 +97,11 @@ class HostsFile
 end
 
 def update_hosts(ip, fqdn, host, backup)
-  HostsFile.new do |hostsfile|
-    hostsfile.backup("/tmp/hosts-#{Time.now.to_i}") if backup
-    hostsfile.remove_host_entries(host)
-    hostsfile.add_host_entry(ip, fqdn, host)
-    hostfile.save
-  end
+  hostsfile = HostsFile.new
+  hostsfile.backup("/tmp/hosts-#{Time.now.to_i}") if backup
+  hostsfile.remove_host_entries(host)
+  hostsfile.add_host_entry(ip, fqdn, host)
+  hostsfile.save
 rescue StandardError => e
   puts 'Error when updating hosts file'
   puts "Error: #{e}"
