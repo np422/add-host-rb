@@ -59,3 +59,64 @@ ssh can be done without any interactive yes responses.
     -s, --dns-server=DNS             Resolv host at DNS dns-server
     -a, --alias=ALIAS                Add an ALIAS for hostname_to_add
 ```
+
+## Extending add-host with custom ruby
+
+This was implemented mostly because you can, and thought it was fun. I doubt
+that any sane person actually will attempt to use this function.
+
+If the file ~/.addhost_extension.rb or ~/addhost_extension.rb exists they are
+loaded using ```load``` and the module AddHostExtension is included if defined.
+
+After /etc/hosts and known_hosts have been updated, a new extension object is
+created with the following method-call
+
+``` ruby
+  extobj = AddHostExtension.extension_class.new(ip:        ip,
+                                                hostname:  hostname,
+                                                hostalias: hostalias,
+                                                domain:    domain,
+                                                ssh:       ssh)
+```
+
+Where hostname/hostalias is in short form, the AHDOMAIN is provided in domain
+parameter and ssh is set to true if the host added was reachable over ssh and
+ssh-keys were found and added to known_hosts
+
+Then a call is made to the method ```extobj.do_whatever```, where an extension
+can do pretty much whatever it wants.
+
+An minimal and useless example how to implement an addhost extension:
+
+``` ruby
+
+module AddHostExtension
+  attr_reader :extension_class
+
+
+  class MyExtensionClass
+    def initialize(ip:, hostname:, hostalias:, domain:, ssh:)
+      @ip        = ip
+      @hostname  = hostname
+      @hostalias = hostalias
+      @domain    = domain
+      @ssh       = ssh
+    end
+
+    def do_whatever
+      debug_obj_vars
+    end
+
+    private
+    def debug_obj_vars
+      puts @ip
+      puts @hostname
+      puts @hostalias
+      puts @domain
+      puts @ssh
+    end
+  end
+  @extension_class = MyExtensionClass
+end
+
+```

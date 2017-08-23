@@ -14,11 +14,13 @@ class SshKeyWriteError < StandardError; end
 
 # Wrap all operations on /etc/hosts in a class
 class HostsFile
-  def self.update_hosts(ip, fqdn, host, backup)
+  # A static method for easier usages, it wraps all the operations needed
+  # to update /etc/hosts
+  def self.update_hosts(ip:, fqdn:, host:, backup:)
     hostsfile = HostsFile.new
-    hostsfile.backup("/tmp/hosts-#{Time.now.to_i}") if backup
-    hostsfile.remove_host_entries(host)
-    hostsfile.add_host_entry(ip, fqdn, host)
+    hostsfile.backup(backup_filename: "/tmp/hosts-#{Time.now.to_i}") if backup
+    hostsfile.remove_host_entries(hostname: host)
+    hostsfile.add_host_entry(ip: ip, fqdn: fqdn, hostname: host)
     hostsfile.save
   rescue StandardError => e
     puts 'Error when updating hosts file'
@@ -30,17 +32,17 @@ class HostsFile
     @host_lines = File.open('/etc/hosts').readlines
   end
 
-  def remove_host_entries(hostname)
+  def remove_host_entries(hostname:)
     @host_lines.select! do |line|
       (line =~ /#{hostname}/).nil?
     end
   end
 
-  def add_host_entry(ip, fqdn, hostname)
+  def add_host_entry(ip:, fqdn:, hostname:)
     @host_lines.push "#{ip} #{fqdn} #{hostname}\n"
   end
 
-  def backup(backup_filename)
+  def backup(backup_filename:)
     File.open(backup_filename, 'w') do |f|
       f.write @host_lines.join
     end
@@ -62,7 +64,7 @@ class HostsFile
 
   private
 
-  def find_cmd(cmd)
+  def find_cmd(cmd: )
     path_dirs = %w[/bin /sbin /usr/bin/ /usr/sbin /usr/loca/bin /usr/local/sbin]
     path_dirs.map { |p| "#{p}/#{cmd}" }.detect do |c|
       File.exist?(c) && File.executable?(c)
@@ -70,7 +72,7 @@ class HostsFile
   end
 
   def sudoer?
-    cp_cmd = find_cmd('cp')
+    cp_cmd = find_cmd(cmd: 'cp')
     `sudo -l #{cp_cmd} /etc/hosts /etc/hosts2 > /dev/null`
     $CHILD_STATUS.exitstatus.zero?
   end
@@ -82,25 +84,25 @@ class HostsFile
     tempfile
   end
 
-  def replace_hosts_file_sudo(tempfile_path)
-    cp_cmd = find_cmd('cp')
+  def replace_hosts_file_sudo(tempfile_path:)
+    cp_cmd = find_cmd(cmd: 'cp')
     `sudo #{cp_cmd} -f #{tempfile_path} /etc/hosts`
-    chown_cmd = find_cmd('chown')
+    chown_cmd = find_cmd(cmd: 'chown')
     `sudo #{chown_cmd} root /etc/hosts`
-    chmod_cmd = find_cmd('chmod')
+    chmod_cmd = find_cmd(cmd: 'chmod')
     `sudo #{chmod_cmd} 644 /etc/hosts`
   end
 
-  def chgrp_hosts_file_sudo(gid)
-    chgrp_cmd = find_cmd('chgrp')
+  def chgrp_hosts_file_sudo(gid:)
+    chgrp_cmd = find_cmd(cmd: 'chgrp')
     `sudo #{chgrp_cmd} #{gid} /etc/hosts`
   end
 
   def save_sudo
     tempfile = to_tempfile
     current_file_gid = File.stat('/etc/hosts').gid
-    replace_hosts_file_sudo(tempfile.path)
-    chgrp_hosts_file_sudo(current_file_gid)
+    replace_hosts_file_sudo(tempfile_path: tempfile.path)
+    chgrp_hosts_file_sudo(gid: current_file_gid)
   end
 
   def save_write
@@ -169,6 +171,37 @@ class SshKeysManipulator
   end
 end
 
+# Check for extension and load if present
+
+def load_extension(verbose:)
+  puts 'Looking for extension' if verbose
+  valid_paths = [File.expand_path('~/addhost_extension.rb'),
+                 File.expand_path('~/.addhost_extension.rb')]
+  path = valid_paths.detect { |p| File.exist? p }
+  load path
+  puts 'Including AddHostExtension' if verbose
+  include AddHostExtension
+  true
+rescue NameError
+  false
+end
+
+def extension_loaded?
+  return !AddHostExtension.nil?
+rescue NameError
+  return false
+end
+
+def run_extension(ip:, hostname:, hostalias:, domain:, ssh:)
+  return unless extension_loaded?
+  extobj = AddHostExtension.extension_class.new(ip:        ip,
+                                                hostname:  hostname,
+                                                hostalias: hostalias,
+                                                domain:    domain,
+                                                ssh:       ssh)
+  extobj.do_whatever
+end
+
 # rubocop:disable LineLength, MethodLength
 def banner
   "\e[1m\e[4mUSAGE\e[0m
@@ -212,7 +245,7 @@ def banner
 end
 # rubocop:enable LineLength, MethodLength
 
-def add_more_switches!(parser, options)
+def add_more_switches!(parser:, options:)
   parser.on('-s DNS', '--dns-server=DNS', 'Resolv host using DNS server') do |s|
     options[:dns] = s
   end
@@ -221,18 +254,18 @@ def add_more_switches!(parser, options)
   end
 end
 
-def add_switches_get_options!(parser)
+def add_switches_get_options!(parser:)
   options = {}
   parser.on('-h', '--help', 'Display usage info') { options[:help] = true }
   parser.on('-v', '--verbose', 'Print more output') { options[:verbose] = true }
   parser.on('-d DOMAIN', '--domain=DOMAIN', 'Use DOMAIN to resolve') do |d|
     options[:domain] = d
   end
-  add_more_switches!(parser, options)
+  add_more_switches!(parser: parser, options: options)
   options
 end
 
-def options_from_env!(options)
+def options_from_env!(options:)
   options[:dns] = ENV['AHDNS'] if options[:dns].nil?
   options[:domain] = ENV['AHDOMAIN'] if options[:domain].nil?
 end
@@ -240,9 +273,9 @@ end
 def switch_please
   optparser = OptionParser.new
   optparser.banner = banner
-  options = add_switches_get_options! optparser
+  options = add_switches_get_options!(parser: optparser)
   optparser.parse!
-  options_from_env! options
+  options_from_env!(options: options)
 rescue OptionParser::InvalidOption
   puts optparser
   exit 1
@@ -277,6 +310,8 @@ alias_fqdn = options[:alias].nil? ? '' : "#{hostalias}.#{domain}"
 
 host_fqdn  = "#{host}.#{domain}"
 
+load_extension(verbose: verbose)
+
 # And here starts the stuff that actually does something
 dig_cmd    = "dig +short +retry=1 +time=1 @#{dns} #{host_fqdn}"
 dig_output = `#{dig_cmd}`
@@ -291,16 +326,20 @@ end
 # that we get the ip-address from the reply and not a CNAME pointer
 dig_output.scan(/\b(?:\d{1,3}\.){3}\d{1,3}\b/) do |ip|
   puts "Adding '#{ip} #{host_fqdn} #{host}' to /etc/hosts" if verbose
-  HostsFile.update_hosts(ip, host_fqdn, host, true)
+  HostsFile.update_hosts(ip: ip, fqdn: host_fqdn, host: host, backup: true)
 
   msg = "Also adding alias '#{ip} #{alias_fqdn} #{hostalias}' to /etc/hosts"
   hostalias.empty? || verbose && puts(msg)
 
-  hostalias.empty? || HostsFile.update_hosts(ip, alias_fqdn, hostalias, false)
+  hostalias.empty? || HostsFile.update_hosts(ip: ip, fqdn: alias_fqdn,
+                                             host: hostalias, backup: false)
 
   edit_ssh = SshKeysManipulator.new(verbose, ip, host_fqdn,
                                     host, alias_fqdn, hostalias)
-  edit_ssh.update_known_hosts
+  host_got_ssh = edit_ssh.update_known_hosts
+
+  run_extension(ip: ip, hostname: host, hostalias: hostalias,
+                domain: domain, ssh: host_got_ssh)
 end
 
 # Close all files even in the case of premature exit due to errors
