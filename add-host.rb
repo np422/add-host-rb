@@ -9,9 +9,23 @@ require 'english'
 
 class NoUpdateMethodAvailable < StandardError; end
 class BackupFailed < StandardError; end
+class SshKeyRemovalError < StandardError; end
+class SshKeyWriteError < StandardError; end
 
 # Wrap all operations on /etc/hosts in a class
 class HostsFile
+  def self.update_hosts(ip, fqdn, host, backup)
+    hostsfile = HostsFile.new
+    hostsfile.backup("/tmp/hosts-#{Time.now.to_i}") if backup
+    hostsfile.remove_host_entries(host)
+    hostsfile.add_host_entry(ip, fqdn, host)
+    hostsfile.save
+  rescue StandardError => e
+    puts 'Error when updating hosts file'
+    puts "Error: #{e}"
+    exit 1
+  end
+
   def initialize
     @host_lines = File.open('/etc/hosts').readlines
   end
@@ -96,21 +110,6 @@ class HostsFile
   end
 end
 
-def update_hosts(ip, fqdn, host, backup)
-  hostsfile = HostsFile.new
-  hostsfile.backup("/tmp/hosts-#{Time.now.to_i}") if backup
-  hostsfile.remove_host_entries(host)
-  hostsfile.add_host_entry(ip, fqdn, host)
-  hostsfile.save
-rescue StandardError => e
-  puts 'Error when updating hosts file'
-  puts "Error: #{e}"
-  exit 1
-end
-
-class SshKeyRemovalError < StandardError; end
-class SshKeyWriteError < StandardError; end
-
 # Wrap ssh host-key manipulation into a utility class
 class SshKeysManipulator
   def initialize(verbose, *hostnames)
@@ -149,16 +148,15 @@ class SshKeysManipulator
 
   def remove_ssh_keys
     @ssh_hosts.each do |host|
-      puts "Remove #{host} from knonw-hosts" if @verbose
-      cmd = "ssh-keygen -q -R #{host} >/dev/null 2>&1"
-      `#{cmd}`
+      puts "Removing #{host} from knonw-hosts" if @verbose
+      `ssh-keygen -q -R #{host} >/dev/null 2>&1`
       $CHILD_STATUS.exitstatus != 0 && raise(SshKeyRemovalError,
                                              "Error while running #{cmd}")
     end
   end
 
   def add_ssh_keys
-    File.open(File.expand_path('~/.ssh/known_hosts'), 'wt') do |f|
+    File.open(File.expand_path('~/.ssh/known_hosts'), 'at') do |f|
       @ssh_hosts.each do |host|
         puts "Adding #{host} to known_hosts" if @verbose
         keyscan_data = @keyscan_template.gsub('_HOST_', host)
@@ -252,7 +250,7 @@ else
   [optparser, options]
 end
 
-# Main program start
+# Main program starts here, with option parsing and input validation
 
 (parser, options) = switch_please
 host = ARGV[0]
@@ -278,6 +276,8 @@ hostalias  = options[:alias].nil? ? '' : options[:alias]
 alias_fqdn = options[:alias].nil? ? '' : "#{hostalias}.#{domain}"
 
 host_fqdn  = "#{host}.#{domain}"
+
+# And here starts the stuff that actually does something
 dig_cmd    = "dig +short +retry=1 +time=1 @#{dns} #{host_fqdn}"
 dig_output = `#{dig_cmd}`
 
@@ -287,20 +287,23 @@ if ($CHILD_STATUS.exitstatus != 0) || dig_output.empty?
   exit 1
 end
 
+# Match dig output against an ip-address regexp to ensure
+# that we get the ip-address from the reply and not a CNAME pointer
 dig_output.scan(/\b(?:\d{1,3}\.){3}\d{1,3}\b/) do |ip|
   puts "Adding '#{ip} #{host_fqdn} #{host}' to /etc/hosts" if verbose
-  update_hosts(ip, host_fqdn, host, true)
+  HostsFile.update_hosts(ip, host_fqdn, host, true)
 
   msg = "Also adding alias '#{ip} #{alias_fqdn} #{hostalias}' to /etc/hosts"
-  puts msg if verbose && !hostalias.empty?
+  hostalias.empty? || verbose && puts(msg)
 
-  update_hosts(ip, alias_fqdn, hostalias, false) unless hostalias.nil?
+  hostalias.empty? || HostsFile.update_hosts(ip, alias_fqdn, hostalias, false)
 
   edit_ssh = SshKeysManipulator.new(verbose, ip, host_fqdn,
                                     host, alias_fqdn, hostalias)
   edit_ssh.update_known_hosts
 end
 
+# Close all files even in the case of premature exit due to errors
 at_exit do
   begin
     ObjectSpace.each_object(File) do |f|
