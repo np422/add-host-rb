@@ -108,33 +108,67 @@ rescue StandardError => e
   exit 1
 end
 
-def remove_ssh_keys(hostlist)
-  hostlist.each do |host|
-    `ssh-keygen -q -R #{host} >/dev/null 2>&1`
-  end
-end
+class SshKeyRemovalError < StandardError; end
+class SshKeyWriteError < StandardError; end
 
-def add_ssh_keys(keyscan_template, hostlist)
-  File.open('/Users/niklas/.ssh/known_hosts', 'a') do |f|
-    hostlist.each do |host|
-      keyscan_data = keyscan_template.gsub('_HOST_', host)
-      f.puts keyscan_data
+# Wrap ssh host-key manipulation into a utility class
+class SshKeysManipulator
+  def initialize(verbose, *hostnames)
+    @verbose = verbose
+    @ssh_hosts = []
+    @ssh_hosts.concat hostnames.reject(&:empty?)
+    keyscan
+    self
+  end
+
+  def update_known_hosts
+    return false if @keyscan_template.empty?
+    msg = "Removing '#{@ssh_hosts.join('\',\'')}' from ~/.ssh/known_hosts"
+    puts msg if @verbose
+    remove_ssh_keys
+    msg = 'Updating ~/.ssh/known_hosts using keys found by ssh-keyscan'
+    puts msg if @verbose
+    add_ssh_keys
+    true
+  end
+
+  private
+
+  def keyscan
+    puts 'Scanning for ssh host-keys' if @verbose
+    keyscan_output = `ssh-keyscan -T 2 #{@ssh_hosts.first} 2>/dev/null`
+    if keyscan_output.empty? || $CHILD_STATUS.exitstatus != 0
+      s = "Can't to connect to #{@ssh_hosts.first} using ssh-keyscan\n"
+      s += 'Won\'t try to add ssh host-keys'
+      puts s if @verbose
+      @keyscan_template = ''
+    else
+      @keyscan_template = keyscan_output.gsub(@ssh_hosts.first, '_HOST_')
     end
   end
-end
 
-def update_ssh_keys(keyscan_template, hostlist, verbose)
-  puts "Removing '#{hostlist.join('\',\'')}' from ~/.ssh/known_hosts" if verbose
-  remove_ssh_keys(hostlist)
-  puts 'Updating ~/.ssh/known_hosts using ssh-keyscan' if verbose
-  add_ssh_keys(keyscan_template, hostlist)
-end
+  def remove_ssh_keys
+    @ssh_hosts.each do |host|
+      puts "Remove #{host} from knonw-hosts" if @verbose
+      cmd = "ssh-keygen -q -R #{host} >/dev/null 2>&1"
+      `#{cmd}`
+      $CHILD_STATUS.exitstatus != 0 && raise(SshKeyRemovalError,
+                                             "Error while running #{cmd}")
+    end
+  end
 
-def mkhostlist(ip, host_fqdn, hostname, alias_fqdn, hostalias)
-  hostlist = [ip, host_fqdn, hostname]
-  hostlist.push alias_fqdn unless alias_fqdn.nil?
-  hostlist.push hostalias unless hostalias.nil?
-  hostlist
+  def add_ssh_keys
+    File.open(File.expand_path('~/.ssh/known_hosts'), 'wt') do |f|
+      @ssh_hosts.each do |host|
+        puts "Adding #{host} to known_hosts" if @verbose
+        keyscan_data = @keyscan_template.gsub('_HOST_', host)
+        f.puts keyscan_data
+      end
+    end
+  rescue StandardError => e
+    puts "Error while updating ~/.ssh/known_hots: #{e}"
+    raise SshKeyWriteError
+  end
 end
 
 # rubocop:disable LineLength, MethodLength
@@ -239,9 +273,9 @@ end
 
 dns        = options[:dns]
 domain     = options[:domain]
-verbose    = options[:verbose]
-hostalias  = options[:alias]
-alias_fqdn = options[:alias].nil? ? nil : "#{hostalias}.#{domain}"
+verbose    = options[:verbose].nil? ? false : options[:verbose]
+hostalias  = options[:alias].nil? ? '' : options[:alias]
+alias_fqdn = options[:alias].nil? ? '' : "#{hostalias}.#{domain}"
 
 host_fqdn  = "#{host}.#{domain}"
 dig_cmd    = "dig +short +retry=1 +time=1 @#{dns} #{host_fqdn}"
@@ -258,18 +292,13 @@ dig_output.scan(/\b(?:\d{1,3}\.){3}\d{1,3}\b/) do |ip|
   update_hosts(ip, host_fqdn, host, true)
 
   msg = "Also adding alias '#{ip} #{alias_fqdn} #{hostalias}' to /etc/hosts"
-  puts msg if verbose && !hostalias.nil?
+  puts msg if verbose && !hostalias.empty?
+
   update_hosts(ip, alias_fqdn, hostalias, false) unless hostalias.nil?
 
-  keyscan_output = `ssh-keyscan -T 2 #{host_fqdn} 2>/dev/null`
-  if keyscan_output.empty? || $CHILD_STATUS.exitstatus != 0
-    puts 'Not adding ssh host keys' if verbose
-    puts "Can't to connect to #{host_fqdn} using ssh-keyscan" if verbose
-  else
-    keyscan_template = keyscan_output.gsub(host_fqdn, '_HOST_')
-    hostlist = mkhostlist(ip, host_fqdn, host, alias_fqdn, hostalias)
-    update_ssh_keys(keyscan_template, hostlist, verbose)
-  end
+  edit_ssh = SshKeysManipulator.new(verbose, ip, host_fqdn,
+                                    host, alias_fqdn, hostalias)
+  edit_ssh.update_known_hosts
 end
 
 at_exit do
