@@ -1,13 +1,15 @@
 # frozen_string_literal: true
 
-# Extension module to add a function that calls a shell function to set another
-# terminal profile, other background color to avoid mixing up remote and
-# local shells, and then runs ssh with a the correct username for the remote
+# Extension module to add a shell function to my zsh startup scripts
+# The function added sets another terminal profile with another
+# background color to avoid mixing up remote and local shells,
+# and then runs ssh with the correct username for the actual remote
 # site.
 #
 # The shell function name is set to the hostalias if present, otherwise
-# from rules to generate a short and easy to type function name, based
-# on the remote sites naming-convention so it's unique and predictable
+# hard-coded rules are used to generate a short and easy to type function
+# name, rules based on the remote sites naming-convention so the function
+# name will be unique and predictable.
 #
 module AddHostExtension
   attr_reader :extension_class
