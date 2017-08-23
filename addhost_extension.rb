@@ -1,15 +1,14 @@
 # frozen_string_literal: true
 
 # Extension module to add a shell function to my zsh startup scripts
-# The function added sets another terminal profile with another
+# The function added activates another terminal profile with different
 # background color to avoid mixing up remote and local shells,
-# and then runs ssh with the correct username for the actual remote
-# site.
+# and then starts ssh with the correct username for the remote site.
 #
-# The shell function name is set to the hostalias if present, otherwise
-# hard-coded rules are used to generate a short and easy to type function
-# name, rules based on the remote sites naming-convention so the function
-# name will be unique and predictable.
+# The shell function name is set to the hostalias if hostalias is present,
+# otherwise hard-coded rules are used to generate a short and easy to type
+# function name. The rules are based on the remote sites naming-convention
+# so the function name will be unique and predictable.
 #
 module AddHostExtension
   attr_reader :extension_class
@@ -25,6 +24,7 @@ module AddHostExtension
     end
 
     def do_whatever
+      # Don't add functions to connect to windows hosts without ssh-server
       return unless @ssh
       @func_name = gen_func_name
       read_func_file
@@ -38,8 +38,8 @@ module AddHostExtension
       @func_lines = File.open(File.expand_path('~/.funcs.zsh')).readlines
     end
 
-    # Removes all lines between the hosts BEGIN/END comments in the lines from
-    # the function file
+    # This removes all lines between the added hosts BEGIN/END comments in the
+    # current func-files content.
     def remove_old_ssh_func
       outside_func = true
       @func_lines = @func_lines.select do |l|
@@ -49,8 +49,8 @@ module AddHostExtension
           # as an unwanted line as well.
           (l =~ /BEGIN_SSH #{@hostname}/).nil? ? true : (outside_func = false)
         else
-          # If the correct END line is found, alter state and returb false
-          # as the END line also should be removed
+          # If the correct END line is found, set the state var outside func to
+          # tru and return false as the END line also should be removed
           (l =~ /END_SSH #{@hostname}/).nil? || outside_func = true
           false
         end
@@ -65,16 +65,16 @@ module AddHostExtension
     end
 
     # The shell function name should be easy/short to type and
-    # easy to predict from the longer hostname.
+    # easy to predict from the longer hostname of the remote host
     def gen_func_name
       return @hostalias unless @hostalias.empty?
       (_epr, @env, @func, @ab) = @hostname.split('-')
       @prefix = prefix_from_hostenv
-      @suffix = suffix_from_abline
+      @suffix = suffix_from_ab_line
       "#{@prefix}#{@func}#{@suffix}"
     end
 
-    def suffix_from_abline
+    def suffix_from_ab_line
       return '' if @ab.nil?
       "-#{@ab}"
     end
