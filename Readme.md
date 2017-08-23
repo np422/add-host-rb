@@ -62,11 +62,11 @@ ssh can be done without any interactive yes responses.
 
 ## Extending add-host with custom ruby
 
-This was implemented mostly because you can, and thought it was fun. I doubt
-that any sane person actually will attempt to use this function.
+This was implemented mostly because you can, and because I thought it was fun.
+I doubt that any sane person actually will attempt to use this function.
 
-If the file ~/.addhost_extension.rb or ~/addhost_extension.rb exists they are
-loaded using ```load``` and the module AddHostExtension is included if defined.
+If the file ```~/.addhost_extension.rb``` or ```~/addhost_extension.rb``` exists they are
+loaded using ```load``` and ```include AddHostExtension``` is attempted.
 
 After /etc/hosts and known_hosts have been updated, a new extension object is
 created with the following method-call
@@ -80,13 +80,20 @@ created with the following method-call
 ```
 
 Where hostname/hostalias is in short form, the AHDOMAIN is provided in domain
-parameter and ssh is set to true if the host added was reachable over ssh and
+parameter and ssh is set to true if the host added was reachable over ssh,
 ssh-keys were found and added to known_hosts
 
 Then a call is made to the method ```extobj.do_whatever```, where an extension
-can do pretty much whatever it wants.
+can do pretty much whatever it wants to do with the information about the newly
+added host.
 
-An minimal and useless example how to implement an addhost extension:
+I've included the extension that I actually use in the repo as an example. I
+didn't think the stuff i put in addhost_extension.rb was generic enough to
+include in the add-host command, but rather very specific to my personal
+use-case.
+
+The minimal_addhost_extension.rb can be used as starting point if you should
+wish to try to write one yourself. That file is also included inline below:
 
 ``` ruby
 
