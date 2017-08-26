@@ -373,8 +373,7 @@ dig_output.scan(/\b(?:\d{1,3}\.){3}\d{1,3}\b/) do |ip|
   Out.put "Also adding alias '#{ip} #{alias_fqdn} #{hostalias}' to /etc/hosts" unless hostalias.empty?
   HostFile.add(ip: ip, name_fqdn:  alias_fqdn, hostname:   hostalias) unless hostalias.empty?
 
-  ssh_editor = SshKeysManipulator.new(ip, host_fqdn, host,
-                                      alias_fqdn, hostalias)
+  ssh_editor = SshKeysManipulator.new(ip, host_fqdn, host, alias_fqdn, hostalias)
   host_got_ssh = ssh_editor.update_known_hosts
 
   CurrentExtensions.load_extensions
