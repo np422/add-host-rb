@@ -73,7 +73,8 @@ The files in the directory ```~/.addhost_extensions.d/``` that ends with .rb
 will be read using ```load``` and an ```include AddHostExtension``` is attempted.
 
 After /etc/hosts and known_hosts have been updated, a new extension object is
-created with the following constructor-method call.
+created with the following constructor call, and hence is what should be
+implemented by an extension.
 
 ``` ruby
   extobj = AddHostExtension.extension_class.new(ip:        ip,
@@ -83,17 +84,17 @@ created with the following constructor-method call.
                                                 ssh:       ssh)
 ```
 
-Where hostname/hostalias is in short form, the AHDOMAIN is provided in domain
-parameter and ssh is set to true if the host added was reachable over ssh,
-ssh-keys were found and added to known_hosts
+In the argument-list hostname/hostalias will be in short form, the AHDOMAIN
+is provided in domain parameter and ssh is set to true if the host added was
+reachable over ssh, ssh-keys were found and added to known_hosts
 
 Then a call is made to the method ```extobj.do_whatever```, where an extension
 can do pretty much whatever it wants to do with the information about the newly
 added host it received previously toghether with .new( .. )
 
 I've included the extension that I actually use in the repo as an example. I
-didn't think the stuff i put in addhost_extension.rb was generic enough to
-include in the add-host command, but rather very specific to my personal
+didn't think the stuff i put in zsh_ssh_function_adder.rb was generic enough
+to include in the add-host command, as it's very specific to my personal
 use-case.
 
 A minimal addhost extension ```my_cool_extension_class.rb``` is also included
