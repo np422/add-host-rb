@@ -1,14 +1,15 @@
 # frozen_string_literal: true
 
 # Extension module to add a shell function to my zsh startup scripts
-# The function added activates another terminal profile with different
-# background color to avoid mixing up remote and local shells,
-# and then starts ssh with the correct username for the remote site.
+# The function added activates another terminal profile with a different
+# background color to avoid mixing up remote and local shells.
+# After setting the terminal profile the scripts then starts ssh to the
+# remote host with the
 #
 # The shell function name is set to the hostalias if hostalias is present,
 # otherwise hard-coded rules are used to generate a short and easy to type
 # function name. The rules are based on the remote sites naming-convention
-# so the function name will be unique and predictable.
+# so the function name will be unique, predictable and easy to remember.
 #
 module AddHostExtension
   attr_reader :extension_class
@@ -44,13 +45,14 @@ module AddHostExtension
       outside_func = true
       @func_lines = @func_lines.select do |l|
         if outside_func
-          # If the correct begin line is found, set the state var outside_func
-          # to false and at the same time return false to mark the BEGIN line
-          # as an unwanted line as well.
+          # If the correct begin line is found, set the state variable
+          # outside_functo false and also return false to mark the BEGIN line
+          # as an unwanted
           (l =~ /BEGIN_SSH #{@hostname}/).nil? ? true : (outside_func = false)
         else
-          # If the correct END line is found, set the state var outside func to
-          # tru and return false as the END line also should be removed
+          # If the correct END line is found, set the state variable outside
+          # func to true, but return false as the END line also should be
+          # removed
           (l =~ /END_SSH #{@hostname}/).nil? || outside_func = true
           false
         end
@@ -64,8 +66,6 @@ module AddHostExtension
       end
     end
 
-    # The shell function name should be easy/short to type and
-    # easy to predict from the longer hostname of the remote host
     def gen_func_name
       return @hostalias unless @hostalias.empty?
       (_epr, @env, @func, @ab) = @hostname.split('-')
@@ -84,6 +84,9 @@ module AddHostExtension
       @env[0]
     end
 
+    # The shell function to add.
+    # the functions tab-reset and tabc are defined in an other place
+    # in the collection of zsh startup-files.
     def gen_shell_function # rubocop:disable Metrics/MethodLength
       "
   # BEGIN_SSH #{@hostname}

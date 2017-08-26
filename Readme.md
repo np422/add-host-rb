@@ -1,20 +1,23 @@
 ## add-host
 
-A very small utility to fetch ip information from a remote DNS server and add it
-to /etc/hosts and the ssh host-keys to ~/.ssh/known_hosts if the host responds to ssh.
+Add-host is a small utility to fetch ip information from a remote DNS
+server and add it to /etc/hosts and the ssh host-keys to
+~/.ssh/known_hosts if the host responds to ssh.
 
-Sometimes I connect with vpn to more than one remote site at the same time. I find it
-to be less error prone to use the hosts file to resolve names compared to configure
-multiple dns-servers with different opinions if a dns-query should give an ip-address
-or NXDOMAIN as response to the query.
+Sometimes I connect with vpn to more than one remote site at the same
+time. I find it to be less error prone to use the hosts file to
+resolve names compared to configure multiple dns-servers with
+different opinions if a dns-query should give an ip-address or
+NXDOMAIN as response to the query.
 
-And it doesn't take very long time before the manual task of looking up ip-addresses
-and adding them to /etc/hosts gets boring.
+And it doesn't take very long time before the manual task of looking
+up ip-addresses and adding them to /etc/hosts gets boring.
 
-So I automated the process of finding the ip-address and adding an entry to the
-hosts file, and as an added bonus the script it will get the ssh host-keys for
-the host added and update ~/.ssh/known_hosts so already the first connectioin with
-ssh can be done without any interactive yes responses.
+So I automated the process of finding the ip-address and adding an
+entry to the hosts file, and as an added bonus the script it will get
+the ssh host-keys for the host added and update ~/.ssh/known_hosts so
+already the first connectioin with ssh can be done without any
+interactive yes responses.
 
 #### USAGE
 ```
@@ -60,16 +63,17 @@ ssh can be done without any interactive yes responses.
     -a, --alias=ALIAS                Add an ALIAS for hostname_to_add
 ```
 
-## Extending add-host with custom ruby
+## Extending add-host with custom ruby classes
 
-This was implemented mostly because you can, and because I thought it was fun.
-I doubt that any sane person actually will attempt to use this function.
+This part of add-host was implemented mostly because you can, and because
+I thought it was fun. I doubt that any sane person actually will attempt
+to make serious use this functionality.
 
-If the file ```~/.addhost_extension.rb``` or ```~/addhost_extension.rb``` exists they are
-loaded using ```load``` and ```include AddHostExtension``` is attempted.
+The files in the directory ```~/.addhost_extensions.d/``` that ends with .rb
+will be read using ```load``` and an ```include AddHostExtension``` is attempted.
 
 After /etc/hosts and known_hosts have been updated, a new extension object is
-created with the following method-call
+created with the following constructor-method call.
 
 ``` ruby
   extobj = AddHostExtension.extension_class.new(ip:        ip,
@@ -85,15 +89,16 @@ ssh-keys were found and added to known_hosts
 
 Then a call is made to the method ```extobj.do_whatever```, where an extension
 can do pretty much whatever it wants to do with the information about the newly
-added host.
+added host it received previously toghether with .new( .. )
 
 I've included the extension that I actually use in the repo as an example. I
 didn't think the stuff i put in addhost_extension.rb was generic enough to
 include in the add-host command, but rather very specific to my personal
 use-case.
 
-The minimal_addhost_extension.rb can be used as starting point if you should
-wish to try to write one yourself. That file is also included inline below:
+A minimal addhost extension ```my_cool_extension_class.rb``` is also included
+and can be used as starting point if you should wish to try to write an
+extension yourself. That file is also included inline below:
 
 ``` ruby
 
@@ -101,7 +106,7 @@ module AddHostExtension
   attr_reader :extension_class
 
 
-  class MyExtensionClass
+  class MyCoolExtensionClass
     def initialize(ip:, hostname:, hostalias:, domain:, ssh:)
       @ip        = ip
       @hostname  = hostname
@@ -123,7 +128,7 @@ module AddHostExtension
       puts @ssh
     end
   end
-  @extension_class = MyExtensionClass
+  @extension_class = MyCoolExtensionClass
 end
 
 ```
