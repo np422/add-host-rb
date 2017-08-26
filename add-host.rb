@@ -368,27 +368,17 @@ end
 # or something else we don't expect.
 dig_output.scan(/\b(?:\d{1,3}\.){3}\d{1,3}\b/) do |ip|
   Out.put "Adding '#{ip} #{host_fqdn} #{host}' to /etc/hosts"
-  HostFile.add(ip: ip,
-               name_fqdn: host_fqdn,
-               hostname: host)
+  HostFile.add(ip: ip, name_fqdn:  host_fqdn, hostname: host)
 
-  unless hostalias.empty?
-    Out.put "Also adding alias '#{ip} #{alias_fqdn} #{hostalias}' to /etc/hosts"
-    HostFile.add(ip: ip,
-                 name_fqdn: alias_fqdn,
-                 hostname: hostalias)
-  end
+  Out.put "Also adding alias '#{ip} #{alias_fqdn} #{hostalias}' to /etc/hosts" unless hostalias.empty?
+  HostFile.add(ip: ip, name_fqdn:  alias_fqdn, hostname:   hostalias) unless hostalias.empty?
 
   ssh_editor = SshKeysManipulator.new(ip, host_fqdn, host,
                                       alias_fqdn, hostalias)
   host_got_ssh = ssh_editor.update_known_hosts
 
   CurrentExtensions.load_extensions
-  CurrentExtensions.run(ip: ip,
-                        hostname: host,
-                        hostalias: hostalias,
-                        domain: domain,
-                        ssh: host_got_ssh)
+  CurrentExtensions.run(ip: ip, hostname: host, hostalias: hostalias, domain: domain, ssh: host_got_ssh)
 end
 
 # Close all files even in the case of premature exit due to errors
