@@ -158,8 +158,7 @@ class SshKeysManipulator
     scan_host = @ssh_hosts.first
     keyscan_output = `ssh-keyscan -T 2 #{scan_host} 2>/dev/null`
     if keyscan_output.empty? || $CHILD_STATUS.exitstatus != 0
-      Out.put "Can't to connect to #{scan_host} using ssh-keyscan,
-               no modifications will be made to the known-hosts file"
+      Out.put "Can't to connect to #{scan_host} using ssh, won't modify the known-hosts file"
       @keyscan_template = ''
     else
       @keyscan_template = keyscan_output.gsub(scan_host, '_HOST_')
@@ -193,7 +192,6 @@ end
 
 # Here be extensions
 module CurrentExtensions
-  attr_reader :extension_class_list
   @@extension_classes = []
 
   def self.load_extensions
