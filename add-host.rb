@@ -26,11 +26,11 @@ module Out
 end
 
 # Wrap all operations on /etc/hosts in a class
-class HostsFile
+class HostFile
   # A static method for easier usages, it wraps all the operations needed
   # to update /etc/hosts
   def self.add(ip:, name_fqdn:, hostname:)
-    hostsfile = HostsFile.new
+    hostsfile = HostFile.new
     hostsfile.remove_host_entries(hostname: hostname)
     hostsfile.add_host_entry(ip: ip, name_fqdn: name_fqdn, hostname: hostname)
     hostsfile.save
@@ -117,7 +117,7 @@ class HostsFile
   end
 end
 
-# Utility functions mostly used by class HostsFile
+# Utility functions mostly used by class HostFile
 
 def lines_to_tempfile(lines:)
   tempfile = Tempfile.new('add-host-rb')
@@ -349,10 +349,10 @@ verbose     = options[:verbose].nil? ? false : options[:verbose]
 Out.verbose = verbose
 hostalias   = options[:alias].nil? ? '' : options[:alias]
 alias_fqdn  = options[:alias].nil? ? '' : "#{hostalias}.#{domain}"
+host_fqdn   = "#{host}.#{domain}"
 
 # And here starts the main-program stuff that actually does something
 
-host_fqdn   = "#{host}.#{domain}"
 dig_cmd     = "dig +short +retry=1 +time=1 @#{dns} #{host_fqdn}"
 dig_output  = `#{dig_cmd}`
 
@@ -368,23 +368,22 @@ end
 # or something else we don't expect.
 dig_output.scan(/\b(?:\d{1,3}\.){3}\d{1,3}\b/) do |ip|
   Out.put "Adding '#{ip} #{host_fqdn} #{host}' to /etc/hosts"
-  HostsFile.add(ip: ip,
-                name_fqdn: host_fqdn,
-                hostname: host)
+  HostFile.add(ip: ip,
+               name_fqdn: host_fqdn,
+               hostname: host)
 
   unless hostalias.empty?
-    msg = "Also adding alias '#{ip} #{alias_fqdn} #{hostalias}' to /etc/hosts"
-    Out.put(msg)
-    HostsFile.add(ip: ip,
-                  name_fqdn: alias_fqdn,
-                  hostname: hostalias)
+    Out.put "Also adding alias '#{ip} #{alias_fqdn} #{hostalias}' to /etc/hosts"
+    HostFile.add(ip: ip,
+                 name_fqdn: alias_fqdn,
+                 hostname: hostalias)
   end
 
-  ssh_editor = SshKeysManipulator.new(ip, host_fqdn, host, alias_fqdn, hostalias)
+  ssh_editor = SshKeysManipulator.new(ip, host_fqdn, host,
+                                      alias_fqdn, hostalias)
   host_got_ssh = ssh_editor.update_known_hosts
 
   CurrentExtensions.load_extensions
-
   CurrentExtensions.run(ip: ip,
                         hostname: host,
                         hostalias: hostalias,
