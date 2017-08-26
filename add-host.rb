@@ -8,7 +8,6 @@ require 'time'
 require 'english'
 
 class NoUpdateMethodAvailable < StandardError; end
-class BackupBeforeWrite < StandardError; end
 class BackupFailed < StandardError; end
 class SshKeyRemovalError < StandardError; end
 class SshKeyWriteError < StandardError; end
@@ -41,6 +40,9 @@ class HostsFile
     exit 1
   end
 
+  # Backup should only be made on the first save of /etc/hosts per run of
+  # add-host, use class variable @@backup to know if we already have done
+  # a backup this time.
   @@backup = false
 
   def initialize
@@ -48,7 +50,7 @@ class HostsFile
   end
 
   def remove_host_entries(hostname:)
-    @host_lines.reject! { |line| line.match /#{hostname}/ }
+    @host_lines.reject! { |line| line.match(/#{hostname}/) }
   end
 
   def add_host_entry(ip:, name_fqdn:, hostname:)
@@ -80,8 +82,6 @@ class HostsFile
   end
 
   private
-
-  # Backup will only be made one time per run of add-host
 
   def sudoer?
     cp_cmd = find_cmd(cmd: 'cp')
@@ -158,8 +158,8 @@ class SshKeysManipulator
     scan_host = @ssh_hosts.first
     keyscan_output = `ssh-keyscan -T 2 #{scan_host} 2>/dev/null`
     if keyscan_output.empty? || $CHILD_STATUS.exitstatus != 0
-      Out.put "Can't to connect to #{scan_host} using ssh-keyscan, no " +
-              'modifications will be made to the known-hosts file'
+      Out.put "Can't to connect to #{scan_host} using ssh-keyscan,
+               no modifications will be made to the known-hosts file"
       @keyscan_template = ''
     else
       @keyscan_template = keyscan_output.gsub(scan_host, '_HOST_')
@@ -199,7 +199,7 @@ module CurrentExtensions
   def self.load_extensions
     Out.put 'Looking for extensions'
     Dir.glob(File.expand_path('~/.addhost_extensions.d/*.rb')).each do |path|
-      self.load_extension_file(file: path)
+      load_extension_file(file: path)
     end
     Out.put 'Loaded extensions:'
     @@extension_classes.each { |c| Out.put c.to_s }
@@ -217,7 +217,7 @@ module CurrentExtensions
   end
 
   def self.run(ip:, hostname:, hostalias:, domain:, ssh:)
-    return if @@extension_classes.length == 0 || !self.loaded?
+    return if @@extension_classes.length.zero? || !loaded?
     @@extension_classes.each do |extension|
       Out.put "Running extension #{extension}"
       extobj = extension.new(ip:        ip,
@@ -229,11 +229,9 @@ module CurrentExtensions
     end
   end
 
-  private
-
   def self.load_extension_file(file:)
     Out.put "Loading extension file: #{file}"
-    load "#{file}"
+    load file.to_s
     Out.put 'File loaded'
     include AddHostExtension
     @@extension_classes << AddHostExtension.class_eval { @extension_class }
