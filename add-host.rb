@@ -334,7 +334,7 @@ elsif options[:dns].nil?
   puts 'No dns server, use -s|--dns-server= or environment variable AHDNS'
   exit 1
 elsif  options[:domain].nil?
-  puts 'No domain, use -d|--domain=DOMAIN or environment variable AHDNS'
+  puts 'No domain, use -d|--domain=DOMAIN or environment variable AHDOMAIN'
   exit 1
 elsif host.nil?
   puts 'No host to add given.'
